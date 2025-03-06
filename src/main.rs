@@ -2,6 +2,7 @@ use std::env;
 //use std::fmt::format;
 use anyhow::{Context, Result};
 use env_logger;
+use httpforge::threadpool::ThreadPool;
 use log;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -21,9 +22,15 @@ fn handle_connection(mut stream: std::net::TcpStream) -> Result<()> {
             log::debug!("GET {}", path);
 
             let path = if *path == "/" {
-                std::env::current_dir().context("current_dir()")?.join("index.html")
+                std::env::current_dir()
+                    .context("current_dir()")?
+                    .join("index.html")
             } else {
-                let fullpath = std::env::current_dir().context("current_dir()")?.to_str().context("to_str()")?.to_string();
+                let fullpath = std::env::current_dir()
+                    .context("current_dir()")?
+                    .to_str()
+                    .context("to_str()")?
+                    .to_string();
                 std::path::PathBuf::from(fullpath + path)
             };
 
@@ -67,11 +74,13 @@ fn handle_connection(mut stream: std::net::TcpStream) -> Result<()> {
 
 fn http_server() -> Result<()> {
     let linstener = TcpListener::bind("0.0.0.0:8080")?;
+    let pool = ThreadPool::new(4);
 
     for stream in linstener.incoming() {
         let stream = stream.context("faile to create tcp-stream")?;
-
-        handle_connection(stream)?;
+        pool.execute(|| {
+            handle_connection(stream).unwrap();
+        });
     }
     Ok(())
 }
