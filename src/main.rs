@@ -2,7 +2,7 @@ use std::env;
 //use std::fmt::format;
 use anyhow::{Context, Result};
 use env_logger;
-use httpforge::threadpool::ThreadPool;
+use httpdforge::threadpool::ThreadPool;
 use log;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -38,7 +38,6 @@ fn handle_connection(mut stream: std::net::TcpStream) -> Result<()> {
             log::debug!("more: {:?}", more);
 
             let file = File::open(path);
-            let mut response = String::with_capacity(32);
 
             match file {
                 Ok(mut file) => {
@@ -46,15 +45,14 @@ fn handle_connection(mut stream: std::net::TcpStream) -> Result<()> {
                     file.read_to_string(&mut body)
                         .context("fail to read file")?;
 
-                    response = format!("HTTP/1.1 200 OK\r\n\r\n{}", body);
+                    stream.write(format!("HTTP/1.1 200 OK\r\n\r\n{}", body).as_bytes()).context("fail to reply")?;
                 }
 
                 Err(e) => {
-                    response = format!("HTTP/1.1 404 NOT FOUND\r\n\r\n{}{}", "404 NOT FOUND. ", e);
+                    stream.write(format!("HTTP/1.1 404 NOT FOUND\r\n\r\n{}{}", "404 NOT FOUND. ", e).as_bytes()).context("fail to reply")?;
                 }
             }
 
-            let _n = stream.write(response.as_bytes()).context("fail to reply")?;
             stream.flush().context("fail to flush")?;
         }
         ["POST", ..] => {
